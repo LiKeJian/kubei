@@ -15,12 +15,10 @@ func initLog(verbose bool) {
 }
 
 func main() {
-	config, err := config.LoadConfig()
-	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
-	}
+	conf := config.LoadConfig()
+	scanConfig := config.LoadScanConfig()
 
-	initLog(config.Verbose)
-	kubeiWebapp := webapp.Init(config)
+	initLog(conf.Verbose)
+	kubeiWebapp := webapp.Init(conf, scanConfig)
 	kubeiWebapp.Run()
 }

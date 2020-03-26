@@ -23,6 +23,7 @@ type Orchestrator struct {
 	progress        ScanProgress
 	status          Status
 	config          *config.Config
+	scanConfig      *config.ScanConfig
 	clientset       kubernetes.Interface
 	sync.Mutex
 }
@@ -36,6 +37,8 @@ type imagePodContext struct {
 	podName         string
 	namespace       string
 	imagePullSecret string
+	imageHash       string
+	podUid          string
 }
 
 type scanData struct {
@@ -70,26 +73,28 @@ func (o *Orchestrator) initScan() error {
 	o.status = ScanInit
 
 	// Get all target pods
-	podList, err := o.clientset.CoreV1().Pods(o.config.TargetNamespace).List(metav1.ListOptions{})
+	podList, err := o.clientset.CoreV1().Pods(o.scanConfig.TargetNamespace).List(metav1.ListOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to list pods. namespace=%s: %v", o.config.TargetNamespace, err)
+		return fmt.Errorf("failed to list pods. namespace=%s: %v", o.scanConfig.TargetNamespace, err)
 	}
 
 	imageToScanData := make(map[string]*scanData)
 
 	// Populate the image to scanData map from all target pods
 	for _, pod := range podList.Items {
-		if shouldIgnorePod(&pod, o.config.IgnoredNamespaces) {
+		if shouldIgnorePod(&pod, o.scanConfig.IgnoredNamespaces) {
 			continue
 		}
 		secrets := k8s_utils.GetPodImagePullSecrets(o.clientset, pod)
-		for _, container := range pod.Spec.Containers {
+		for _, container := range pod.Status.ContainerStatuses {
 			// Create pod context
 			podContext := &imagePodContext{
 				containerName:   container.Name,
 				podName:         pod.GetName(),
+				podUid:          string(pod.GetUID()),
 				namespace:       pod.GetNamespace(),
-				imagePullSecret: k8s_utils.GetMatchingSecretName(secrets, container),
+				imagePullSecret: k8s_utils.GetMatchingSecretName(secrets, container.Image),
+				imageHash:       k8s_utils.ParseImageHash(container.ImageID),
 			}
 			if data, ok := imageToScanData[container.Image]; !ok {
 				// Image added for the first time, create scan data and append pod context
@@ -120,10 +125,10 @@ func (o *Orchestrator) initScan() error {
 
 func Create(config *config.Config) *Orchestrator {
 	return &Orchestrator{
-		progress: ScanProgress{},
-		status:   Idle,
-		config:   config,
-		Mutex:    sync.Mutex{},
+		progress:   ScanProgress{},
+		status:     Idle,
+		config: config,
+		Mutex:      sync.Mutex{},
 	}
 }
 
@@ -211,10 +216,11 @@ func (o *Orchestrator) Start() error {
 	return http.ListenAndServe(":"+o.config.KlarResultListenPort, nil)
 }
 
-func (o *Orchestrator) Scan() error {
+func (o *Orchestrator) Scan(scanConfig *config.ScanConfig) error {
 	o.Lock()
 	defer o.Unlock()
 
+	o.scanConfig = scanConfig
 	log.Infof("Start scanning...")
 	err := o.initScan()
 	if err != nil {
@@ -263,6 +269,8 @@ type ImageScanResult struct {
 	PodNamespace    string
 	ImageName       string
 	ContainerName   string
+	ImageHash       string
+	PodUid          string
 	Vulnerabilities []*clair.Vulnerability
 	Success         bool
 }

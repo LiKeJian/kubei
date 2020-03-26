@@ -35,7 +35,7 @@ func (o *Orchestrator) jobBatchManagement() {
 	// done channel takes the result of the job
 	done := make(chan bool)
 
-	numberOfWorkers := o.config.MaxScanParallelism
+	numberOfWorkers := o.scanConfig.MaxScanParallelism
 	for i := 0; i < numberOfWorkers; i++ {
 		go o.worker(q, i, done, killsignal)
 	}
@@ -79,7 +79,7 @@ func (o *Orchestrator) worker(queue chan *scanData, worknumber int, done, ks cha
 
 func (o *Orchestrator) waitForResult(data *scanData) {
 	log.Infof("Waiting for result. image=%+v", data.imageName)
-	ticker := time.NewTicker(o.config.JobResultTimeout)
+	ticker := time.NewTicker(o.scanConfig.JobResultTimeout)
 	select {
 	case <-data.resultChan:
 		log.Infof("Image scanned result has arrived. image=%v", data.imageName)
@@ -121,7 +121,7 @@ const jobContainerName = "klar-scanner"
 func (o *Orchestrator) createContainer(imageName, secretName string, scanUUID string) corev1.Container {
 	env := []corev1.EnvVar{
 		{Name: "CLAIR_ADDR", Value: o.config.ClairAddress},
-		{Name: "CLAIR_OUTPUT", Value: o.config.SeverityThreshold},
+		{Name: "CLAIR_OUTPUT", Value: o.scanConfig.SeverityThreshold},
 		{Name: "KLAR_TRACE", Value: strconv.FormatBool(o.config.KlarTrace)},
 		{Name: "RESULT_SERVICE_PATH", Value: o.config.KlarResultServicePath},
 		{Name: "SCAN_UUID", Value: scanUUID},
@@ -142,7 +142,7 @@ func (o *Orchestrator) createContainer(imageName, secretName string, scanUUID st
 
 	return corev1.Container{
 		Name:  jobContainerName,
-		Image: o.config.KlarImageName,
+		Image: o.scanConfig.KlarImageName,
 		Args: []string{
 			imageName,
 		},

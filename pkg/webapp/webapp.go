@@ -3,10 +3,10 @@ package webapp
 import (
 	"fmt"
 	"github.com/Portshift/klar/clair"
+	"github.com/Portshift/kubei/pkg/config"
+	"github.com/Portshift/kubei/pkg/orchestrator"
 	log "github.com/sirupsen/logrus"
 	"html/template"
-	"kubei/pkg/config"
-	"kubei/pkg/orchestrator"
 	"net/http"
 	"sort"
 	"strings"

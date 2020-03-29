@@ -1,6 +1,7 @@
 package orchestrator
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/Portshift/klar/clair"
@@ -25,11 +26,18 @@ type Orchestrator struct {
 	config          *config.Config
 	scanConfig      *config.ScanConfig
 	clientset       kubernetes.Interface
+	server *http.Server
 	sync.Mutex
 }
 
-type OrchestratorInterface interface {
-	Scan()
+type VulnerabilitiesScanner interface {
+	Start() error
+	Scan(scanConfig *config.ScanConfig) error
+	ScanProgress() ScanProgress
+	Status() Status
+	Results() *ScanResults
+	Clear()
+	Stop()
 }
 
 type imagePodContext struct {
@@ -124,12 +132,17 @@ func (o *Orchestrator) initScan() error {
 }
 
 func Create(config *config.Config) *Orchestrator {
-	return &Orchestrator{
-		progress:   ScanProgress{},
-		status:     Idle,
-		config: config,
-		Mutex:      sync.Mutex{},
+	o := &Orchestrator{
+		progress:        ScanProgress{},
+		status:          Idle,
+		config:          config,
+		server:          &http.Server{Addr: ":" + config.KlarResultListenPort},
+		Mutex:           sync.Mutex{},
 	}
+
+	http.HandleFunc("/result/", o.resultHttpHandler)
+
+	return o
 }
 
 func readResultBodyData(req *http.Request) (*forwarding.ImageVulnerabilities, error) {
@@ -209,11 +222,20 @@ func (o *Orchestrator) Start() error {
 	if err != nil {
 		return fmt.Errorf("failed to create clientset: %v", err)
 	}
-	o.clientset = clientset
 
+	o.clientset = clientset
 	// Start result server
-	http.HandleFunc("/result/", o.resultHttpHandler)
-	return http.ListenAndServe(":"+o.config.KlarResultListenPort, nil)
+	log.Infof("Orchestrator starting")
+	return o.server.ListenAndServe()
+}
+
+func (o *Orchestrator) Stop() {
+	log.Infof("Orchestrator stopping")
+	if o.server != nil {
+		if err := o.server.Shutdown(context.Background()); err != nil {
+			log.Errorf("Failed to shutdown server: %v", err)
+		}
+	}
 }
 
 func (o *Orchestrator) Scan(scanConfig *config.ScanConfig) error {

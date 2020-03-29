@@ -266,7 +266,7 @@ func Init(config *config.Config, scanConfig *config.ScanConfig) *Webapp {
 func (wa *Webapp) Run() {
 	errChannel := make(chan error, 2)
 	go func() {
-		if err := wa.orchestrator.Start(); err != nil {
+		if err := wa.orchestrator.Start(); err != nil && err != http.ErrServerClosed {
 			errChannel <- fmt.Errorf("failed to start Orchestrator: %v", err)
 		}
 	}()

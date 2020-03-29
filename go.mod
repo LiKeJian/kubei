@@ -4,7 +4,7 @@ go 1.13
 
 require (
 	github.com/Portshift/klar v1.9.10-0.20200324130907-00206514ae5e
-	github.com/docker/distribution v2.7.1+incompatible
+	github.com/containers/image v3.0.2+incompatible
 
 	github.com/satori/go.uuid v1.2.0
 	github.com/sirupsen/logrus v1.4.2

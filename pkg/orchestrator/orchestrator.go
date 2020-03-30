@@ -26,7 +26,7 @@ type Orchestrator struct {
 	config          *config.Config
 	scanConfig      *config.ScanConfig
 	clientset       kubernetes.Interface
-	server *http.Server
+	server          *http.Server
 	sync.Mutex
 }
 
@@ -133,11 +133,11 @@ func (o *Orchestrator) initScan() error {
 
 func Create(config *config.Config) *Orchestrator {
 	o := &Orchestrator{
-		progress:        ScanProgress{},
-		status:          Idle,
-		config:          config,
-		server:          &http.Server{Addr: ":" + config.KlarResultListenPort},
-		Mutex:           sync.Mutex{},
+		progress: ScanProgress{},
+		status:   Idle,
+		config:   config,
+		server:   &http.Server{Addr: ":" + config.KlarResultListenPort},
+		Mutex:    sync.Mutex{},
 	}
 
 	http.HandleFunc("/result/", o.resultHttpHandler)
@@ -317,6 +317,8 @@ func (o *Orchestrator) Results() *ScanResults {
 				PodNamespace:    context.namespace,
 				ImageName:       scanD.imageName,
 				ContainerName:   context.containerName,
+				ImageHash:       context.imageHash,
+				PodUid:          context.podUid,
 				Vulnerabilities: scanD.result,
 				Success:         scanD.success,
 			})
